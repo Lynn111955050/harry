@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harry's Beach Day (帥氣互動版)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: '微軟正黑體', 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            background: linear-gradient(to bottom, #A1C4FD 0%, #C2E9FB 100%);
+            transition: background 0.8s ease;
+            overflow-x: hidden;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 90%;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { margin-bottom: 20px; font-size: 1.8em; color: #2c3e50; }
+        
+        /* 角色區域（設定為可以放置拖曳物品的目標區域） */
+        #character-area {
+            margin-bottom: 10px;
+            perspective: 1000px;
+            position: relative;
+            padding: 20px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        /* 當物品拖曳到他身上時的發光效果 */
+        #character-area.drag-over {
+            background-color: rgba(255, 215, 0, 0.2);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        /* 帥氣 Harry 的 SVG 設定 */
+        #character-svg {
+            width: 220px;
+            height: 220px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 15px 15px rgba(0,0,0,0.2)); 
+        }
+        
+        /* 點擊時的互動反應 */
+        .poke-anim { animation: nod 0.4s ease !important; }
+        
+        /* 結局動畫 */
+        .sad-anim {
+            animation: shake 0.5s ease infinite !important;
+            filter: grayscale(60%) drop-shadow(0 15px 15px rgba(0,0,0,0.4)) !important;
+        }
+        .happy-anim {
+            animation: gentleFloat 2s ease infinite !important;
+            filter: drop-shadow(0 0 25px #FFD700) !important;
+        }
+
+        /* 動畫設定 */
+        @keyframes nod {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(10px) rotate(3deg); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-3px) rotate(-2deg); }
+            75% { transform: translateX(3px) rotate(2deg); }
+        }
+        @keyframes gentleFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        
+        /* 領帶飄動動畫 (綁定在 SVG 內的領帶上) */
+        @keyframes tieWind {
+            0%, 100% { transform: rotate(0deg) skewX(0deg); }
+            50% { transform: rotate(-5deg) skewX(-10deg); }
+        }
+        #yellow-tie {
+            transform-origin: 100px 145px;
+            animation: tieWind 3s ease-in-out infinite;
+        }
+
+        /* 對話框樣式 */
+        #dialogue-bubble {
+            background-color: #f8f9fa;
+            color: #2c3e50;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            font-size: 1.1em;
+            line-height: 1.6;
+            text-align: left;
+            width: 90%;
+            border: 2px solid #e9ecef;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            min-height: 80px;
+        }
+        #dialogue-bubble:after {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            margin-left: -10px;
+            border-width: 10px;
+            border-style: solid;
+            border-color: transparent transparent #f8f9fa transparent;
+        }
+        
+        p#story-text { margin: 0; font-weight: bold; }
+        .hint-text { font-size: 0.85em; color: #7f8c8d; font-weight: normal; margin-top: 10px; display: block; }
+
+        /* 物品拖曳區塊 */
+        #items-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            width: 100%;
+            margin-top: 10px;
+            opacity: 0; /* 一開始隱藏，對話進行後顯示 */
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        #items-container.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 可拖曳的物品卡片 */
+        .draggable-item {
+            background: white;
+            border: 2px dashed #bdc3c7;
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 3rem;
+            cursor: grab;
+            transition: all 0.2s;
+            width: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .draggable-item:active { cursor: grabbing; transform: scale(0.95); }
+        .draggable-item:hover { border-color: #3498db; background-color: #f1f9ff; transform: translateY(-5px); }
+        .item-label { font-size: 0.9rem; font-weight: bold; color: #555; margin-top: 10px; }
+
+        .btn-restart { 
+            background-color: #ffe66d; color: #333; margin-top: 15px;
+            padding: 12px 24px; border: none; border-radius: 50px;
+            font-size: 1.1em; font-weight: bold; cursor: pointer;
+            display: none; transition: transform 0.2s;
+        }
+        .btn-restart:hover { transform: translateY(-3px); }
+
+        /* 結局場景切換 */
+        .scene-good { background: linear-gradient(to bottom, #00FFFF 0%, #20B2AA 100%) !important; }
+        .scene-bad { background: linear-gradient(to bottom, #2c3e50 0%, #000000 100%) !important; }
+        .scene-bad .container { background-color: rgba(30, 30, 30, 0.95); }
+        .scene-bad h1, .scene-bad .item-label { color: #eee; }
+        .scene-bad #dialogue-bubble { background-color: #444; color: #fff; border-color: #555;}
+        .scene-bad #dialogue-bubble:after { border-color: transparent transparent #444 transparent; }
+    </style>
+</head>
+<body id="body-bg">
+
+    <div class="container">
+        <h1 id="title">🎬 Harry 的沙灘 MV 拍攝 🎬</h1>
+        
+        <!-- 角色區域：設定 ondragover 和 ondrop 讓他可以接收物品 -->
+        <div id="character-area" 
+             ondrop="drop(event)" 
+             ondragover="allowDrop(event)" 
+             ondragenter="dragEnter(event)" 
+             ondragleave="dragLeave(event)">
+             
+            <!-- 帥氣版 Harry SVG -->
+            <svg id="character-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" onclick="interactWithHarry()">
+                <!-- 深色條紋西裝外套 -->
+                <path d="M 20 200 L 50 135 L 100 160 L 150 135 L 180 200 Z" fill="#2c3e50" />
+                <path d="M 40 200 L 60 145" stroke="#34495e" stroke-width="2" />
+                <path d="M 160 200 L 140 145" stroke="#34495e" stroke-width="2" />
+                <!-- 白色襯衫 -->
+                <path d="M 75 140 L 100 180 L 125 140 Z" fill="#ecf0f1" />
+                
+                <!-- 飄逸的黃色領帶 (加上動畫 id) -->
+                <path id="yellow-tie" d="M 100 145 L 90 155 L 20 160 L 10 175 L 80 185 L 110 155 Z" fill="#F1C40F" />
+                
+                <!-- 脖子 -->
+                <rect x="85" y="105" width="30" height="40" fill="#f5d0b5" />
+                
+                <!-- 俐落有稜角的臉型 (更成熟帥氣) -->
+                <path d="M 60 60 Q 60 120 100 130 Q 140 120 140 60 Z" fill="#FFE0C8" />
+                <!-- 下顎線陰影增強立體感 -->
+                <path d="M 60 90 Q 100 135 140 90 Q 135 125 100 130 Q 65 125 60 90 Z" fill="#e6bb9c" />
+                
+                <!-- 深邃的眼睛 -->
+                <circle cx="80" cy="80" r="5" fill="#2c3e50" />
+                <circle cx="120" cy="80" r="5" fill="#2c3e50" />
+                <circle cx="79" cy="79" r="1.5" fill="#fff" />
+                <circle cx="119" cy="79" r="1.5" fill="#fff" />
+                
+                <!-- 帥氣的濃眉 -->
+                <path id="eyebrow-l" d="M 70 70 Q 80 65 90 70" stroke="#3e2723" stroke-width="3" fill="transparent" stroke-linecap="round"/>
+                <path id="eyebrow-r" d="M 110 70 Q 120 65 130 70" stroke="#3e2723" stroke-width="3" fill="transparent" stroke-linecap="round"/>
+                
+                <!-- 挺拔的鼻子 -->
+                <path d="M 100 80 L 100 100 L 95 100" stroke="#d4a382" stroke-width="2" fill="transparent" stroke-linecap="round"/>
+                
+                <!-- 微笑 / 說話的嘴巴 -->
+                <path id="mouth" d="M 88 110 Q 100 115 112 110" stroke="#4a3018" stroke-width="2" fill="transparent" stroke-linecap="round"/>
+                
+                <!-- 成熟微捲的油頭/飛機頭 -->
+                <path d="M 50 65 Q 40 20 100 15 Q 160 20 150 65 Q 140 45 100 35 Q 60 45 50 65 Z" fill="#3e2723" />
+                <path d="M 55 50 Q 80 15 100 20" stroke="#3e2723" stroke-width="6" fill="transparent" stroke-linecap="round" />
+                <path d="M 145 50 Q 120 15 100 20" stroke="#3e2723" stroke-width="6" fill="transparent" stroke-linecap="round" />
+                <!-- 旁邊飄逸的髮絲 -->
+                <path d="M 45 55 Q 35 65 40 80" stroke="#3e2723" stroke-width="3" fill="transparent" stroke-linecap="round" />
+                <path d="M 155 55 Q 165 65 160 80" stroke="#3e2723" stroke-width="3" fill="transparent" stroke-linecap="round" />
+            </svg>
+        </div>
+        
+        <div id="dialogue-bubble">
+            <p id="story-text">「嗨，我是 Harry。今天海邊風有點大，拍攝挺辛苦的呢。」</p>
+            <span class="hint-text" id="hint-msg">👉 (點擊 Harry 看看他有什麼反應)</span>
+        </div>
+        
+        <!-- 可拖曳的物品區塊 -->
+        <div id="items-container">
+            <!-- 塑膠瓶 (設定 draggable="true") -->
+            <div class="draggable-item" draggable="true" ondragstart="drag(event)" id="item-plastic">
+                🧴
+                <span class="item-label">塑膠瓶裝水</span>
+            </div>
+            <!-- 環保杯 (設定 draggable="true") -->
+            <div class="draggable-item" draggable="true" ondragstart="drag(event)" id="item-cup">
+                🧋
+                <span class="item-label">專屬環保杯</span>
+            </div>
+        </div>
+
+        <button id="btn-restart" class="btn-restart" onclick="resetGame()">🔄 再玩一次</button>
+    </div>
+
+    <script>
+        const bodyBg = document.getElementById('body-bg');
+        const title = document.getElementById('title');
+        const characterSvg = document.getElementById('character-svg');
+        const characterArea = document.getElementById('character-area');
+        const mouth = document.getElementById('mouth');
+        const storyText = document.getElementById('story-text');
+        const hintMsg = document.getElementById('hint-msg');
+        const itemsContainer = document.getElementById('items-container');
+        const btnRestart = document.getElementById('btn-restart');
+        
+        // 紀錄對話進度
+        let clickCount = 0;
+        let isGameEnded = false;
+
+        // 1. 點擊 Harry 的互動邏輯
+        function interactWithHarry() {
+            if(isGameEnded) return; // 如果遊戲結束就不給點
+            
+            // 每次點擊觸發點頭動畫
+            characterSvg.classList.remove('poke-anim');
+            void characterSvg.offsetWidth; 
+            characterSvg.classList.add('poke-anim');
+            
+            clickCount++;
+            
+            if (clickCount === 1) {
+                mouth.setAttribute("d", "M 85 110 Q 100 118 115 110"); // 笑開一點
+                storyText.innerHTML = "「剛剛那段音樂真的很棒對吧？不過我現在又熱又渴...」";
+                hintMsg.innerHTML = "👉 (再點擊他一次)";
+            } else if (clickCount === 2) {
+                mouth.setAttribute("d", "M 90 112 Q 100 115 110 112"); 
+                storyText.innerHTML = "「那邊桌上有水，你可以幫我拿過來嗎？直接把它交到我手上就好！」";
+                hintMsg.innerHTML = "✨ (請將下方的物品 <b>長按並拖曳</b> 到 Harry 身上！)";
+                // 顯示物品讓玩家拖曳
+                itemsContainer.classList.add('show');
+            } else {
+                storyText.innerHTML = "「快點啦～我真的很渴！拖曳過來給我吧！」";
+            }
+        }
+
+        /* ================= 拖曳功能 (Drag and Drop API) 邏輯 ================= */
+        
+        // 2. 當開始拖曳物品時
+        function drag(ev) {
+            if(isGameEnded) { ev.preventDefault(); return; }
+            // 紀錄現在被拖曳的物品 ID
+            ev.dataTransfer.setData("text", ev.target.id);
+            // 改變對話框文字增加互動感
+            storyText.innerHTML = "「喔？你要拿哪一個給我？」";
+            mouth.setAttribute("d", "M 85 112 Q 100 105 115 112"); // 驚訝的嘴型
+        }
+
+        // 3. 當物品進入目標區域 (Harry 身上)
+        function dragEnter(ev) {
+            ev.preventDefault();
+            characterArea.classList.add('drag-over'); // 加入發光效果
+        }
+
+        // 4. 當物品離開目標區域
+        function dragLeave(ev) {
+            ev.preventDefault();
+            characterArea.classList.remove('drag-over'); // 移除發光效果
+        }
+
+        // 5. 允許放置物品 (必須加上 preventDefault)
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+
+        // 6. 當物品放開 (Drop) 結算結局
+        function drop(ev) {
+            ev.preventDefault();
+            characterArea.classList.remove('drag-over');
+            
+            // 取得剛剛拖曳的物品 ID
+            var data = ev.dataTransfer.getData("text");
+            isGameEnded = true;
+            itemsContainer.classList.remove('show'); // 隱藏物品
+            btnRestart.style.display = 'inline-block'; // 顯示重新開始按鈕
+
+            if(data === "item-plastic") {
+                chooseBad();
+            } else if(data === "item-cup") {
+                chooseGood();
+            }
+        }
+
+        /* ================= 結局結算邏輯 ================= */
+
+        function chooseBad() {
+            bodyBg.className = 'scene-bad';
+            title.innerHTML = "⚠️ 塑膠危機";
+            characterSvg.className = 'sad-anim'; 
+            mouth.setAttribute("d", "M 88 115 Q 100 108 112 115"); // 難過的嘴型
+            
+            storyText.innerHTML = "「（眉頭一皺）謝謝你的水...但是你看，這個塑膠瓶用完就會變成垃圾。海風這麼大，很容易被吹進海裡傷害海洋生物的。下次我們用環保杯好嗎？」";
+            hintMsg.innerHTML = "❌ 一時的方便，會造成長久的污染。";
+        }
+
+        function chooseGood() {
+            bodyBg.className = 'scene-good';
+            title.innerHTML = "🌊 TPWK 海洋守護者";
+            characterSvg.className = 'happy-anim'; 
+            mouth.setAttribute("d", "M 82 108 Q 100 125 118 108"); // 大笑的嘴型
+            
+            storyText.innerHTML = "「（露出迷人的微笑）沒錯！這就是我的特製環保杯！謝謝你幫我拿來。Treat People With Kindness，對我們的地球也要一樣 Kind 喔！準備好繼續拍攝了嗎？」";
+            hintMsg.innerHTML = "✔️ 減少一次性塑膠，你也是超級巨星！";
+        }
+
+        function resetGame() {
+            bodyBg.className = '';
+            title.innerHTML = "🎬 Harry 的沙灘 MV 拍攝 🎬";
+            characterSvg.className = ''; 
+            mouth.setAttribute("d", "M 88 110 Q 100 115 112 110");
+            
+            isGameEnded = false;
+            clickCount = 0;
+            btnRestart.style.display = 'none';
+            itemsContainer.classList.remove('show');
+            
+            storyText.innerHTML = "「嗨，我是 Harry。今天海邊風有點大，拍攝挺辛苦的呢。」";
+            hintMsg.innerHTML = "👉 (點擊 Harry 看看他有什麼反應)";
+        }
+    </script>
+</body>
+</html>
